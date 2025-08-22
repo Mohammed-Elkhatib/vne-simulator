@@ -100,10 +100,9 @@ vne-algorithm-framework/
 │   ├── simulation/               # Simulation engine
 │   ├── visualization/            # Plotting functions
 │   └── metrics/                  # Performance metrics
-├── experiments/                  # Experimental framework
-│   ├── docs/                    # Analysis documentation
-│   └── results/                 # Generated results
-└── CLAUDE.md                    # Development context
+└── experiments/                  # Experimental framework
+    ├── docs/                    # Analysis documentation
+    └── results/                 # Generated results
 ```
 
 ## Key Research Findings
@@ -165,16 +164,16 @@ If you use this framework in your research, please cite:
 
 ```bibtex
 @misc{vne-algorithm-framework,
-  title={VNE Algorithm Comparison Framework},
-  author={[Your Name]},
+  title={VNE Algorithm Simulator},
+  author={[Mohammed-Elkhatib]},
   year={2025},
-  url={[Repository URL]}
+  url={[https://github.com/Mohammed-Elkhatib/vne-simulator.git]}
 }
 ```
 
 ## License
 
-[Specify your license here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
