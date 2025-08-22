@@ -1,0 +1,12 @@
+{
+  "experiment_name": "load_testing_light_demand",
+  "description": "",
+  "run_date": "2025-08-22T23:18:37.003557",
+  "algorithms_tested": [
+    "Simple_Greedy",
+    "RW_BFS",
+    "RW_MaxMatch",
+    "Yu2008"
+  ],
+  "total_algorithms": 4
+}

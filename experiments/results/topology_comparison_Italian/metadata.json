@@ -1,0 +1,12 @@
+{
+  "experiment_name": "topology_comparison_Italian",
+  "description": "",
+  "run_date": "2025-08-22T22:06:57.892989",
+  "algorithms_tested": [
+    "Simple_Greedy",
+    "RW_BFS",
+    "RW_MaxMatch",
+    "Yu2008"
+  ],
+  "total_algorithms": 4
+}
