@@ -1,0 +1,26 @@
+{
+  "scenario": "light_demand",
+  "description": "Light load: 15 diverse VNRs with low resource demands",
+  "experiment_date": "2025-10-26T11:43:08.829551",
+  "substrate_network": "German",
+  "total_algorithms": 4,
+  "vnr_queue_size": 15,
+  "cpu_range": [
+    10,
+    20
+  ],
+  "bandwidth_range": [
+    5,
+    15
+  ],
+  "vnr_sizes": [
+    2,
+    3,
+    4
+  ],
+  "topologies": [
+    "path",
+    "star",
+    "cycle"
+  ]
+}

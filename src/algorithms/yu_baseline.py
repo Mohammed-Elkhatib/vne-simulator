@@ -1,4 +1,5 @@
 import networkx as nx
+import itertools
 
 def calculate_revenue(vnr):
     revenue = total_bandwidth = total_cpu = 0
@@ -40,6 +41,15 @@ def yu2008_algorithm(substrate, vnr_chunks, time_window=25):
     # Historical mappings for metrics calculation (never deleted)
     historical_node_mapping = {}
     historical_link_mapping = {}
+    
+    # Store VNR metadata for result generation (FIX: Include arrival_time)
+    vnr_metadata = {}
+    for chunk in vnr_chunks:
+        for vnr in chunk:
+            vnr_metadata[vnr.graph['vnr_id']] = {
+                'arrival_time': vnr.graph['arrival_time'],
+                'vnr_object': vnr
+            }
 
     def get_node_rank(node):
         node_total_bandwidth = 0
@@ -158,7 +168,8 @@ def yu2008_algorithm(substrate, vnr_chunks, time_window=25):
                 path_found = False
                 for k in range(1, 4):  # keep k small
                     try:
-                        paths = list(nx.shortest_simple_paths(substrate, s_src, s_dst))[:k]
+                        # Get only k paths, not ALL paths (critical performance fix)
+                        paths = list(itertools.islice(nx.shortest_simple_paths(substrate, s_src, s_dst), k))
                         for path in paths:
                             # Check bandwidth
                             can_allocate = True
@@ -237,6 +248,7 @@ def yu2008_algorithm(substrate, vnr_chunks, time_window=25):
             
             results.append({
                 'vnr_id': vnr_id,
+                'arrival_time': vnr_metadata[vnr_id]['arrival_time'],  # FIX: Added arrival_time
                 'success': True,
                 'node_mapping': vnr_node_mapping,
                 'link_mapping': vnr_link_mapping
@@ -244,6 +256,7 @@ def yu2008_algorithm(substrate, vnr_chunks, time_window=25):
         else:
             results.append({
                 'vnr_id': vnr_id,
+                'arrival_time': vnr_metadata[vnr_id]['arrival_time'],  # FIX: Added arrival_time
                 'success': False,
                 'node_mapping': None,
                 'link_mapping': None

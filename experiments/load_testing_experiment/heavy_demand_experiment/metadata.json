@@ -1,0 +1,27 @@
+{
+  "scenario": "heavy_demand",
+  "description": "Heavy load: 35 diverse VNRs with high resource demands",
+  "experiment_date": "2025-10-26T11:43:52.437956",
+  "substrate_network": "German",
+  "total_algorithms": 4,
+  "vnr_queue_size": 35,
+  "cpu_range": [
+    20,
+    40
+  ],
+  "bandwidth_range": [
+    15,
+    35
+  ],
+  "vnr_sizes": [
+    4,
+    5,
+    6
+  ],
+  "topologies": [
+    "star",
+    "cycle",
+    "tree",
+    "random"
+  ]
+}

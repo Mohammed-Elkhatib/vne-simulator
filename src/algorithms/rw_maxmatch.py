@@ -1,4 +1,5 @@
 import networkx as nx
+import itertools
 from .noderank import compute_noderank
 
 def rw_maxmatch_algorithm(substrate, vnr):
@@ -67,8 +68,8 @@ def rw_maxmatch_link_mapping(substrate, vnr, node_mapping):
         path_found = False
         for k in range(1, 4):
             try:
-                # Get k-shortest paths
-                paths = list(nx.shortest_simple_paths(substrate, s_src, s_dst))
+                # Get only k paths, not ALL paths (critical performance fix)
+                paths = list(itertools.islice(nx.shortest_simple_paths(substrate, s_src, s_dst), k))
                 if len(paths) < k:
                     break  # No more paths available
 

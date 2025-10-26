@@ -154,6 +154,7 @@ def plot_all_vnrs(vnr_queue=None, title_prefix="All VNRs", filename="all_vnrs.pn
     plt.suptitle(f'{title_prefix} ({num_vnrs} VNRs) - Node Labels: CPU Requirements, Edge Labels: Bandwidth Requirements', 
                  fontsize=max(20, min(30, fig_width)), y=0.98)
     plt.tight_layout()
+    plt.subplots_adjust(top=0.93)  # Add space between suptitle and subplots
     os.makedirs("pictures", exist_ok=True)
     plt.savefig(os.path.join("pictures", filename), dpi=300, bbox_inches='tight')
     plt.show()

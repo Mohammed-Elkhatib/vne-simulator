@@ -1,0 +1,46 @@
+{
+  "Simple_Greedy": {
+    "metrics": {
+      "total_requests": 20,
+      "successful_requests": 13,
+      "acceptance_ratio": 0.65,
+      "total_revenue": 1524,
+      "total_cost": 1858,
+      "revenue_cost_ratio": 0.8202368137782562
+    },
+    "status": "SUCCESS"
+  },
+  "RW_BFS": {
+    "metrics": {
+      "total_requests": 20,
+      "successful_requests": 15,
+      "acceptance_ratio": 0.75,
+      "total_revenue": 1731,
+      "total_cost": 1894,
+      "revenue_cost_ratio": 0.9139387539598732
+    },
+    "status": "SUCCESS"
+  },
+  "RW_MaxMatch": {
+    "metrics": {
+      "total_requests": 20,
+      "successful_requests": 17,
+      "acceptance_ratio": 0.85,
+      "total_revenue": 2061,
+      "total_cost": 2459,
+      "revenue_cost_ratio": 0.8381455876372509
+    },
+    "status": "SUCCESS"
+  },
+  "Yu2008": {
+    "metrics": {
+      "total_requests": 20,
+      "successful_requests": 15,
+      "acceptance_ratio": 0.75,
+      "total_revenue": 1824,
+      "total_cost": 2415,
+      "revenue_cost_ratio": 0.7552795031055901
+    },
+    "status": "SUCCESS"
+  }
+}

@@ -10,3 +10,7 @@ env/
 # IDE files
 .vscode/
 .idea/
+
+# Personal/thesis files (not for repo)
+CLAUDE.md
+chapter5_results.tex

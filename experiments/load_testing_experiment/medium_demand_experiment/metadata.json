@@ -1,0 +1,27 @@
+{
+  "scenario": "medium_demand",
+  "description": "Medium load: 25 diverse VNRs with moderate resource demands",
+  "experiment_date": "2025-10-26T11:43:27.857129",
+  "substrate_network": "German",
+  "total_algorithms": 4,
+  "vnr_queue_size": 25,
+  "cpu_range": [
+    15,
+    30
+  ],
+  "bandwidth_range": [
+    10,
+    25
+  ],
+  "vnr_sizes": [
+    3,
+    4,
+    5
+  ],
+  "topologies": [
+    "path",
+    "star",
+    "cycle",
+    "tree"
+  ]
+}
