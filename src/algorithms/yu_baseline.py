@@ -222,7 +222,11 @@ def yu2008_algorithm(substrate, vnr_chunks, time_window=25):
                     'departure_time': departure_time
                 }
                 successfully_embedded_vnrs.add(vnr.graph['vnr_id'])
-                
+
+                # CRITICAL FIX: Store actual embedding time (not arrival time)
+                # This is needed for correct utilization visualization
+                vnr_metadata[vnr.graph['vnr_id']]['embedding_time'] = current_time
+
                 # Save to historical mappings for metrics calculation
                 for k, v in node_mapping.items():
                     if k[0] == vnr.graph['vnr_id']:
@@ -245,10 +249,11 @@ def yu2008_algorithm(substrate, vnr_chunks, time_window=25):
             # Extract mappings for this VNR from historical storage
             vnr_node_mapping = {k[1]: v for k, v in historical_node_mapping.items() if k[0] == vnr_id}
             vnr_link_mapping = {k[1]: v for k, v in historical_link_mapping.items() if k[0] == vnr_id}
-            
+
             results.append({
                 'vnr_id': vnr_id,
-                'arrival_time': vnr_metadata[vnr_id]['arrival_time'],  # FIX: Added arrival_time
+                'arrival_time': vnr_metadata[vnr_id]['arrival_time'],
+                'embedding_time': vnr_metadata[vnr_id].get('embedding_time', vnr_metadata[vnr_id]['arrival_time']),  # CRITICAL FIX
                 'success': True,
                 'node_mapping': vnr_node_mapping,
                 'link_mapping': vnr_link_mapping
@@ -256,7 +261,8 @@ def yu2008_algorithm(substrate, vnr_chunks, time_window=25):
         else:
             results.append({
                 'vnr_id': vnr_id,
-                'arrival_time': vnr_metadata[vnr_id]['arrival_time'],  # FIX: Added arrival_time
+                'arrival_time': vnr_metadata[vnr_id]['arrival_time'],
+                'embedding_time': None,  # Failed VNRs have no embedding time
                 'success': False,
                 'node_mapping': None,
                 'link_mapping': None
