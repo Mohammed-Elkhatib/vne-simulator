@@ -33,8 +33,14 @@ from pathlib import Path
 from datetime import datetime
 import copy
 
-# Add src to path
-sys.path.append('../src')
+# Add src to path - works from both project root and experiments/ directory
+script_dir = Path(__file__).parent.absolute()
+project_root = script_dir.parent
+src_path = project_root / 'src'
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 from src.networks.substrate_networks import create_german_network
 from src.networks.vne_generators import generate_vnr
@@ -50,7 +56,7 @@ class UnifiedLoadExperiments:
     """Unified experiment runner for load testing scenarios."""
     
     def __init__(self):
-        self.output_base_dir = Path("experiments") / "load_testing_experiment"
+        self.output_base_dir = Path("load_testing_experiment")
         self.output_base_dir.mkdir(parents=True, exist_ok=True)
         
         # Use German network as substrate (proven good performance from topology experiments)
@@ -276,24 +282,27 @@ class UnifiedLoadExperiments:
                 all_results[alg_name] = {'status': 'FAILED', 'error': str(e)}
         
         # Generate visualizations
-        self._generate_load_visualizations(scenario_name, all_results, vnr_queue, exp_dir)
-        
-        # Save results
-        self._save_load_results(scenario_name, scenario_config, all_results, exp_dir)
+        utilization_data = self._generate_load_visualizations(scenario_name, all_results, vnr_queue, exp_dir)
+
+        # Save results with utilization data
+        self._save_load_results(scenario_name, scenario_config, all_results, exp_dir, utilization_data)
         
         return all_results
     
     def _generate_load_visualizations(self, scenario_name, all_results, vnr_queue, output_dir):
         """Generate the 3 required visualizations for load experiment."""
-        
+
         # 1. Timeline Comparison (4×2 layout)
         self._generate_timeline_figure(scenario_name, all_results, vnr_queue, output_dir)
-        
-        # 2. Resource Utilization Comparison (2×2 layout)  
-        self._generate_utilization_figure(scenario_name, all_results, vnr_queue, output_dir)
-        
+
+        # 2. Resource Utilization Comparison (2×2 layout)
+        utilization_data = self._generate_utilization_figure(scenario_name, all_results, vnr_queue, output_dir)
+
         # 3. Metrics Comparison (2×2 layout)
         self._generate_metrics_figure(scenario_name, all_results, output_dir)
+
+        # ADDED: Return utilization data for JSON saving
+        return utilization_data
     
     def _generate_timeline_figure(self, scenario_name, all_results, vnr_queue, output_dir):
         """Generate timeline comparison figure (4×2 layout) - EXACT copy from topology experiments."""
@@ -362,15 +371,18 @@ class UnifiedLoadExperiments:
         print(f"    Saved: {filename}")
     
     def _generate_utilization_figure(self, scenario_name, all_results, vnr_queue, output_dir):
-        """Generate resource utilization comparison figure (2×2 layout) - EXACT copy from topology experiments."""
+        """Generate resource utilization comparison figure (2×2 layout) with detailed metrics."""
         # Convert to format expected by topology utilization function
         results = {}
         for alg_name, data in all_results.items():
             if data['status'] == 'SUCCESS':
                 results[alg_name] = data['results']
-        
+
         fig, axes = plt.subplots(2, 2, figsize=(20, 16))
         axes = axes.flatten()
+
+        # ADDED: Dictionary to store utilization metrics for each algorithm
+        utilization_metrics = {}
         
         for idx, (alg_name, alg_results) in enumerate(results.items()):
             if idx >= 4:  # Only 4 algorithms max
@@ -403,8 +415,40 @@ class UnifiedLoadExperiments:
                         
                         # Calculate utilization using the working function
                         node_utilization, edge_utilization = _calculate_utilization_from_embeddings(substrate_copy, active_embeddings)
-                        
-                        # Draw the network using the working function  
+
+                        # ADDED: Extract and save DETAILED utilization metrics
+                        import numpy as np
+                        node_values = list(node_utilization.values())
+                        edge_values = [v for v in edge_utilization.values() if v > 0]
+
+                        # Save detailed per-node and per-edge data for spatial analysis
+                        utilization_metrics[alg_name] = {
+                            # Peak snapshot info
+                            'peak_time': peak_embeddings['peak_time'],
+                            'peak_active_vnrs': peak_embeddings['active_count'],
+
+                            # DETAILED per-node utilization (for bottleneck identification)
+                            'node_utilization': {str(node): float(util) for node, util in node_utilization.items()},
+
+                            # DETAILED per-edge utilization (for link bottleneck identification)
+                            'edge_utilization': {f"{e[0]}-{e[1]}": float(util) for e, util in edge_utilization.items() if util > 0},
+
+                            # Summary statistics (for quick comparison)
+                            'summary': {
+                                'avg_node_utilization': float(np.mean(node_values)) if node_values else 0.0,
+                                'max_node_utilization': float(np.max(node_values)) if node_values else 0.0,
+                                'min_node_utilization': float(np.min(node_values)) if node_values else 0.0,
+                                'std_node_utilization': float(np.std(node_values)) if node_values else 0.0,
+                                'avg_edge_utilization': float(np.mean(edge_values)) if edge_values else 0.0,
+                                'max_edge_utilization': float(np.max(edge_values)) if edge_values else 0.0,
+                                'num_nodes_over_80pct': int(sum(1 for v in node_values if v > 0.8)),
+                                'num_nodes_over_50pct': int(sum(1 for v in node_values if v > 0.5)),
+                                'num_nodes_unused': int(sum(1 for v in node_values if v == 0)),
+                                'num_edges_utilized': len(edge_values)
+                            }
+                        }
+
+                        # Draw the network using the working function
                         _draw_resource_network(substrate_copy, pos, node_utilization, edge_utilization, edge_labels=True)
                         
                         ax.set_title(f'{alg_name.replace("_", " ")} Peak Resource Utilization\\n(T={peak_embeddings["peak_time"]}, {peak_embeddings["active_count"]} active VNRs)', 
@@ -469,7 +513,10 @@ class UnifiedLoadExperiments:
         plt.savefig(filename, dpi=300, bbox_inches='tight')
         plt.close()
         print(f"    Saved: {filename}")
-    
+
+        # ADDED: Return utilization metrics for saving to JSON
+        return utilization_metrics
+
     def _generate_metrics_figure(self, scenario_name, all_results, output_dir):
         """Generate metrics comparison figure (2×2 layout)."""
         
@@ -545,17 +592,19 @@ class UnifiedLoadExperiments:
         for result in results:
             if result['success']:
                 vnr_id = result['vnr_id']
-                arrival_time = result['arrival_time']
-                
+
+                # CRITICAL FIX: Use embedding_time for Yu2008 (accounts for retries)
+                embedding_time = result.get('embedding_time', result['arrival_time'])
+
                 # Find VNR object for lifetime
                 vnr = next(v for v in vnr_queue if v.graph['vnr_id'] == vnr_id)
-                departure_time = arrival_time + vnr.graph['lifetime']
-                
-                events.append((arrival_time, 'arrival', result))
+                departure_time = embedding_time + vnr.graph['lifetime']
+
+                events.append((embedding_time, 'arrival', result))
                 events.append((departure_time, 'departure', result))
         
-        # Sort events by time
-        events.sort(key=lambda x: x[0])
+        # Sort events by time - CRITICAL: Departures before arrivals at same time
+        events.sort(key=lambda x: (x[0], x[1] != 'departure'))  # False < True, so 'departure' comes first
         
         # Track active embeddings over time
         active_embeddings = {}
@@ -586,17 +635,23 @@ class UnifiedLoadExperiments:
             'active_embeddings': peak_active
         }
     
-    def _save_load_results(self, scenario_name, scenario_config, all_results, output_dir):
-        """Save experiment results and metadata."""
-        
+    def _save_load_results(self, scenario_name, scenario_config, all_results, output_dir, utilization_data=None):
+        """Save experiment results and metadata including utilization."""
+
         # Save results summary
         serializable_results = {}
         for alg_name, data in all_results.items():
             if data['status'] == 'SUCCESS':
-                serializable_results[alg_name] = {
+                result_entry = {
                     'metrics': data['metrics'],
                     'status': data['status']
                 }
+
+                # ADDED: Include utilization data if available
+                if utilization_data and alg_name in utilization_data:
+                    result_entry['utilization'] = utilization_data[alg_name]
+
+                serializable_results[alg_name] = result_entry
             else:
                 serializable_results[alg_name] = {
                     'status': data['status'],

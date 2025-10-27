@@ -1,7 +1,7 @@
 {
   "scenario": "heavy_demand",
   "description": "Heavy load: 35 diverse VNRs with high resource demands",
-  "experiment_date": "2025-10-26T11:43:52.437956",
+  "experiment_date": "2025-10-27T21:29:42.198470",
   "substrate_network": "German",
   "total_algorithms": 4,
   "vnr_queue_size": 35,

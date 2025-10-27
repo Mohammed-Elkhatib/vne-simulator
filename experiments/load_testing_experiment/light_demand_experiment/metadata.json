@@ -1,7 +1,7 @@
 {
   "scenario": "light_demand",
   "description": "Light load: 15 diverse VNRs with low resource demands",
-  "experiment_date": "2025-10-26T11:43:08.829551",
+  "experiment_date": "2025-10-27T21:29:22.637099",
   "substrate_network": "German",
   "total_algorithms": 4,
   "vnr_queue_size": 15,

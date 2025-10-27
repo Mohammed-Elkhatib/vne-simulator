@@ -28,8 +28,15 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from datetime import datetime
 
-# Add src to path
-sys.path.append('../src')
+# Add src to path - works from both project root and experiments/ directory
+import os
+script_dir = Path(__file__).parent.absolute()
+project_root = script_dir.parent
+src_path = project_root / 'src'
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Import required modules
 from src.networks.substrate_networks import create_german_network, create_italian_network
@@ -46,7 +53,7 @@ class UnifiedTopologyExperiments:
     """Unified experiment runner for all 6 topologies."""
     
     def __init__(self):
-        self.output_base_dir = Path("experiments/topology_experiment")
+        self.output_base_dir = Path("topology_experiment")
         self.output_base_dir.mkdir(exist_ok=True)
         
         # Use EXACT same parameters as working substrate figure
@@ -142,11 +149,11 @@ class UnifiedTopologyExperiments:
         
         # Generate 3 figures for this topology
         self._generate_timeline_comparison(topology_name, results, exp_dir)
-        self._generate_utilization_comparison(topology_name, substrate, results, exp_dir)
+        utilization_data = self._generate_utilization_comparison(topology_name, substrate, results, exp_dir)
         self._generate_metrics_comparison(topology_name, results, exp_dir)
-        
-        # Save JSON results using working pattern from experiment_runner.py
-        self._save_results_json(topology_name, results, exp_dir)
+
+        # Save JSON results with utilization data
+        self._save_results_json(topology_name, results, exp_dir, utilization_data)
         
         print(f"[OK] Completed {topology_name} experiment")
         return results
@@ -227,6 +234,7 @@ class UnifiedTopologyExperiments:
         from src.visualization.resource_plots import plot_resource_utilization_snapshot
         from src.networks.vnr_creation import create_vnr_queue
         import networkx as nx
+        import numpy as np  # ADDED for utilization metrics calculation
         import os
         
         # Create a 2x2 subplot for the 4 algorithms
@@ -236,7 +244,10 @@ class UnifiedTopologyExperiments:
         
         positions = [(0,0), (0,1), (1,0), (1,1)]
         vnr_queue = create_vnr_queue()
-        
+
+        # ADDED: Dictionary to store utilization metrics for each algorithm
+        utilization_metrics = {}
+
         for idx, (alg_name, alg_results) in enumerate(results.items()):
             if idx >= 4:  # Safety check
                 break
@@ -273,8 +284,39 @@ class UnifiedTopologyExperiments:
                             
                             # Calculate utilization using the working function
                             node_utilization, edge_utilization = _calculate_utilization_from_embeddings(substrate_copy, active_embeddings)
-                            
-                            # Draw the network using the working function  
+
+                            # ADDED: Extract and save DETAILED utilization metrics
+                            node_values = list(node_utilization.values())
+                            edge_values = [v for v in edge_utilization.values() if v > 0]
+
+                            # Save detailed per-node and per-edge data for spatial analysis
+                            utilization_metrics[alg_name] = {
+                                # Peak snapshot info
+                                'peak_time': peak_embeddings['time'],
+                                'peak_active_vnrs': peak_embeddings['count'],
+
+                                # DETAILED per-node utilization (for bottleneck identification)
+                                'node_utilization': {str(node): float(util) for node, util in node_utilization.items()},
+
+                                # DETAILED per-edge utilization (for link bottleneck identification)
+                                'edge_utilization': {f"{e[0]}-{e[1]}": float(util) for e, util in edge_utilization.items() if util > 0},
+
+                                # Summary statistics (for quick comparison)
+                                'summary': {
+                                    'avg_node_utilization': float(np.mean(node_values)) if node_values else 0.0,
+                                    'max_node_utilization': float(np.max(node_values)) if node_values else 0.0,
+                                    'min_node_utilization': float(np.min(node_values)) if node_values else 0.0,
+                                    'std_node_utilization': float(np.std(node_values)) if node_values else 0.0,
+                                    'avg_edge_utilization': float(np.mean(edge_values)) if edge_values else 0.0,
+                                    'max_edge_utilization': float(np.max(edge_values)) if edge_values else 0.0,
+                                    'num_nodes_over_80pct': int(sum(1 for v in node_values if v > 0.8)),
+                                    'num_nodes_over_50pct': int(sum(1 for v in node_values if v > 0.5)),
+                                    'num_nodes_unused': int(sum(1 for v in node_values if v == 0)),
+                                    'num_edges_utilized': len(edge_values)
+                                }
+                            }
+
+                            # Draw the network using the working function
                             _draw_resource_network(substrate_copy, pos, node_utilization, edge_utilization, edge_labels=True)
                             
                             ax.set_title(f'{alg_name.replace("_", " ")} Peak Resource Utilization\\n(T={peak_embeddings["time"]}, {peak_embeddings["count"]} active VNRs)', 
@@ -340,9 +382,12 @@ class UnifiedTopologyExperiments:
         output_path = output_dir / f"{topology_name.lower()}_utilization.png"
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
-        
+
         print(f"      Saved: {output_path}")
-    
+
+        # ADDED: Return utilization metrics for saving to JSON
+        return utilization_metrics
+
     def _generate_metrics_comparison(self, topology_name, results, output_dir):
         """Generate metrics comparison using EXACT working code from experiment_runner.py."""
         print(f"    Generating metrics comparison...")
@@ -433,8 +478,8 @@ class UnifiedTopologyExperiments:
             
             print(f"      Saved: {output_path}")
     
-    def _save_results_json(self, topology_name, results, output_dir):
-        """Save results as JSON using working pattern from experiment_runner.py."""
+    def _save_results_json(self, topology_name, results, output_dir, utilization_data=None):
+        """Save results as JSON including utilization metrics."""
         print(f"    Saving JSON results...")
         
         # Calculate enhanced metrics for summary
@@ -478,7 +523,7 @@ class UnifiedTopologyExperiments:
                 acceptance_ratio = successful / total if total > 0 else 0
                 revenue_cost_ratio = total_revenue / total_cost if total_cost > 0 else 0
                 
-                serializable_results[alg_name] = {
+                result_entry = {
                     'metrics': {
                         'total_requests': total,
                         'successful_requests': successful,
@@ -489,6 +534,12 @@ class UnifiedTopologyExperiments:
                     },
                     'status': 'SUCCESS'
                 }
+
+                # ADDED: Include utilization data if available
+                if utilization_data and alg_name in utilization_data:
+                    result_entry['utilization'] = utilization_data[alg_name]
+
+                serializable_results[alg_name] = result_entry
             else:
                 serializable_results[alg_name] = {
                     'status': 'ERROR',
@@ -504,15 +555,18 @@ class UnifiedTopologyExperiments:
         """Find the time point with maximum active VNRs for realistic utilization visualization"""
         # Create timeline of all arrival and departure events
         events = []
-        
+
         for result in results:
             if result['success']:
                 vnr = next(v for v in vnr_queue if v.graph['vnr_id'] == result['vnr_id'])
-                arrival_time = vnr.graph['arrival_time']
-                departure_time = arrival_time + vnr.graph['lifetime']
-                
+
+                # CRITICAL FIX: Use embedding_time for Yu2008 (accounts for retries)
+                # Other algorithms use arrival_time (embedded immediately)
+                embedding_time = result.get('embedding_time', vnr.graph['arrival_time'])
+                departure_time = embedding_time + vnr.graph['lifetime']
+
                 events.append({
-                    'time': arrival_time,
+                    'time': embedding_time,
                     'type': 'ARRIVAL',
                     'vnr_id': result['vnr_id'],
                     'result': result,
@@ -524,8 +578,8 @@ class UnifiedTopologyExperiments:
                     'vnr_id': result['vnr_id']
                 })
         
-        # Sort events by time
-        events.sort(key=lambda x: (x['time'], x['type'] == 'DEPARTURE'))  # Departures before arrivals at same time
+        # Sort events by time - CRITICAL: Departures before arrivals at same time
+        events.sort(key=lambda x: (x['time'], x['type'] != 'DEPARTURE'))  # False < True, so DEPARTURE comes first
         
         # Track active VNRs and find peak
         active_vnrs = {}

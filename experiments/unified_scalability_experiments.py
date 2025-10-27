@@ -20,8 +20,14 @@ from pathlib import Path
 from datetime import datetime
 import networkx as nx
 
-# Add src to path
-sys.path.append('../src')
+# Add src to path - works from both project root and experiments/ directory
+script_dir = Path(__file__).parent.absolute()
+project_root = script_dir.parent
+src_path = project_root / 'src'
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Import required modules - EXACT COPY from working topology experiments
 from src.networks.substrate_networks import create_german_network, create_italian_network
@@ -39,7 +45,7 @@ class UnifiedScalabilityExperiments:
     """Unified scalability experiment runner - exact copy of working topology patterns."""
     
     def __init__(self):
-        self.output_base_dir = Path("experiments/scalability_experiment")
+        self.output_base_dir = Path("scalability_experiment")
         self.output_base_dir.mkdir(parents=True, exist_ok=True)
         
         # Global seed for reproducible substrate generation
@@ -156,11 +162,11 @@ class UnifiedScalabilityExperiments:
         
         # Generate 3 figures for this network size - EXACT COPY from topology
         self._generate_timeline_comparison(network_name, results, exp_dir)
-        self._generate_utilization_comparison(network_name, config, substrate, results, exp_dir)
+        utilization_data = self._generate_utilization_comparison(network_name, config, substrate, results, exp_dir)
         self._generate_metrics_comparison(network_name, results, exp_dir)
-        
+
         # Save JSON results - EXACT COPY from topology
-        self._save_results_json(network_name, results, exp_dir)
+        self._save_results_json(network_name, results, exp_dir, utilization_data)
         
         print(f"[OK] Completed {network_name} experiment")
         return results
@@ -180,11 +186,13 @@ class UnifiedScalabilityExperiments:
         for result in results:
             if result['success']:
                 vnr = next(v for v in vnr_queue if v.graph['vnr_id'] == result['vnr_id'])
-                arrival_time = vnr.graph['arrival_time']
-                departure_time = arrival_time + vnr.graph['lifetime']
-                
+
+                # CRITICAL FIX: Use embedding_time for Yu2008 (accounts for retries)
+                embedding_time = result.get('embedding_time', vnr.graph['arrival_time'])
+                departure_time = embedding_time + vnr.graph['lifetime']
+
                 events.append({
-                    'time': arrival_time,
+                    'time': embedding_time,
                     'type': 'ARRIVAL',
                     'vnr_id': result['vnr_id'],
                     'result': result,
@@ -196,8 +204,8 @@ class UnifiedScalabilityExperiments:
                     'vnr_id': result['vnr_id']
                 })
         
-        # Sort events by time
-        events.sort(key=lambda x: (x['time'], x['type'] == 'DEPARTURE'))  # Departures before arrivals at same time
+        # Sort events by time - CRITICAL: Departures before arrivals at same time
+        events.sort(key=lambda x: (x['time'], x['type'] != 'DEPARTURE'))  # False < True, so DEPARTURE comes first
         
         # Track active VNRs at each time point
         active_vnrs = {}
@@ -321,6 +329,7 @@ class UnifiedScalabilityExperiments:
         from src.visualization.resource_plots import plot_resource_utilization_snapshot
         from src.networks.vnr_creation import create_vnr_queue
         import networkx as nx
+        import numpy as np  # ADDED for utilization metrics calculation
         import os
         
         # Create a 2x2 subplot for the 4 algorithms - EXACT COPY
@@ -330,6 +339,9 @@ class UnifiedScalabilityExperiments:
         
         positions = [(0,0), (0,1), (1,0), (1,1)]
         vnr_queue = create_vnr_queue()
+
+        # ADDED: Dictionary to store utilization metrics for each algorithm
+        utilization_metrics = {}
         
         for idx, (alg_name, alg_results) in enumerate(results.items()):
             if idx >= 4:  # Safety check
@@ -367,8 +379,31 @@ class UnifiedScalabilityExperiments:
                             
                             # Calculate utilization using the working function
                             node_utilization, edge_utilization = _calculate_utilization_from_embeddings(substrate_copy, active_embeddings)
-                            
-                            # Draw the network using the working function  
+
+                            # ADDED: Extract and save DETAILED utilization metrics
+                            node_values = list(node_utilization.values())
+                            edge_values = [v for v in edge_utilization.values() if v > 0]
+
+                            utilization_metrics[alg_name] = {
+                                'peak_time': peak_embeddings['time'],
+                                'peak_active_vnrs': peak_embeddings['count'],
+                                'node_utilization': {str(node): float(util) for node, util in node_utilization.items()},
+                                'edge_utilization': {f"{e[0]}-{e[1]}": float(util) for e, util in edge_utilization.items() if util > 0},
+                                'summary': {
+                                    'avg_node_utilization': float(np.mean(node_values)) if node_values else 0.0,
+                                    'max_node_utilization': float(np.max(node_values)) if node_values else 0.0,
+                                    'min_node_utilization': float(np.min(node_values)) if node_values else 0.0,
+                                    'std_node_utilization': float(np.std(node_values)) if node_values else 0.0,
+                                    'avg_edge_utilization': float(np.mean(edge_values)) if edge_values else 0.0,
+                                    'max_edge_utilization': float(np.max(edge_values)) if edge_values else 0.0,
+                                    'num_nodes_over_80pct': int(sum(1 for v in node_values if v > 0.8)),
+                                    'num_nodes_over_50pct': int(sum(1 for v in node_values if v > 0.5)),
+                                    'num_nodes_unused': int(sum(1 for v in node_values if v == 0)),
+                                    'num_edges_utilized': len(edge_values)
+                                }
+                            }
+
+                            # Draw the network using the working function
                             _draw_resource_network(substrate_copy, pos, node_utilization, edge_utilization, edge_labels=True)
                             
                             ax.set_title(f'{alg_name.replace("_", " ")} Peak Resource Utilization\\n(T={peak_embeddings["time"]}, {peak_embeddings["count"]} active VNRs)', 
@@ -434,8 +469,11 @@ class UnifiedScalabilityExperiments:
         output_path = output_dir / f"{network_name.lower()}_utilization.png"
         plt.savefig(output_path, dpi=300, bbox_inches='tight')
         plt.close()
-        
+
         print(f"      Saved: {output_path}")
+
+        # ADDED: Return utilization metrics for JSON saving
+        return utilization_metrics
     
     def _generate_metrics_comparison(self, network_name, results, output_dir):
         """Generate metrics comparison using EXACT working code from experiment_runner.py."""
@@ -527,13 +565,13 @@ class UnifiedScalabilityExperiments:
             
             print(f"      Saved: {output_path}")
     
-    def _save_results_json(self, network_name, results, output_dir):
+    def _save_results_json(self, network_name, results, output_dir, utilization_data=None):
         """Save JSON results - EXACT COPY from topology experiments."""
-        
+
         # Calculate comprehensive metrics for each algorithm
         from src.metrics.metrics import calculate_revenue, calculate_cost
         vnr_queue = create_vnr_queue()
-        
+
         summary_data = {}
         for alg_name, alg_results in results.items():
             if alg_results:  # Only process if we have results
@@ -547,12 +585,18 @@ class UnifiedScalabilityExperiments:
                         enhanced_results.append({**result, 'revenue': revenue, 'cost': cost})
                     else:
                         enhanced_results.append({**result, 'revenue': 0, 'cost': 0})
-                
+
                 metrics = calculate_metrics_summary(enhanced_results)
-                summary_data[alg_name] = {
+                result_entry = {
                     'metrics': metrics,
                     'status': 'SUCCESS'
                 }
+
+                # ADDED: Include utilization data if available
+                if utilization_data and alg_name in utilization_data:
+                    result_entry['utilization'] = utilization_data[alg_name]
+
+                summary_data[alg_name] = result_entry
             else:
                 summary_data[alg_name] = {
                     'status': 'FAILED',

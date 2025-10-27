@@ -1,7 +1,7 @@
 {
   "scenario": "medium_demand",
   "description": "Medium load: 25 diverse VNRs with moderate resource demands",
-  "experiment_date": "2025-10-26T11:43:27.857129",
+  "experiment_date": "2025-10-27T21:29:31.068297",
   "substrate_network": "German",
   "total_algorithms": 4,
   "vnr_queue_size": 25,

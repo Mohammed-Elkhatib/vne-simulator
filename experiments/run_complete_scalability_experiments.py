@@ -31,8 +31,14 @@ import sys
 import os
 from pathlib import Path
 
-# Add current directory to path for imports
-sys.path.append('.')
+# Add src to path - works from both project root and experiments/ directory
+script_dir = Path(__file__).parent.absolute()
+project_root = script_dir.parent
+src_path = project_root / 'src'
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 try:
     from unified_scalability_experiments import UnifiedScalabilityExperiments

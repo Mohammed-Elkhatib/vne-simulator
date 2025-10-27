@@ -35,8 +35,14 @@ import os
 from pathlib import Path
 from datetime import datetime
 
-# Add src to path (now we're in experiments/ so go up one level)
-sys.path.append('../src')
+# Add src to path - works from both project root and experiments/ directory
+script_dir = Path(__file__).parent.absolute()
+project_root = script_dir.parent
+src_path = project_root / 'src'
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Import unified load experiment runner (now in same directory)
 from unified_load_experiments import UnifiedLoadExperiments

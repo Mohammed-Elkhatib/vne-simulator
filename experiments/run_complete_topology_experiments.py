@@ -45,8 +45,15 @@ import networkx as nx
 from pathlib import Path
 from datetime import datetime
 
-# Add src to path (now we're in experiments/ so go up one level)
-sys.path.append('../src')
+# Add src to path - works from both project root and experiments/ directory
+import os
+script_dir = Path(__file__).parent.absolute()
+project_root = script_dir.parent
+src_path = project_root / 'src'
+if str(src_path) not in sys.path:
+    sys.path.insert(0, str(src_path))
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Import unified experiment runner (now in same directory)
 from unified_topology_experiments import UnifiedTopologyExperiments
@@ -105,9 +112,11 @@ def generate_substrate_networks_figure():
         nx.draw_networkx_nodes(substrate, pos, node_size=node_sizes, node_color='lightblue', ax=ax)
         nx.draw_networkx_edges(substrate, pos, width=2, ax=ax)
 
-        # Node labels with CPU
-        node_labels = {n: f"{n}\\nCPU:{substrate.nodes[n]['cpu']}" for n in substrate.nodes()}
-        nx.draw_networkx_labels(substrate, pos, node_labels, font_size=9, ax=ax)
+        # Node labels with CPU (use matplotlib text for proper newline support)
+        for n in substrate.nodes():
+            x, y = pos[n]
+            ax.text(x, y, f"{n}\nCPU:{substrate.nodes[n]['cpu']}",
+                   fontsize=9, ha='center', va='center')
 
         # Edge labels with bandwidth 
         edge_labels = {}
@@ -116,7 +125,7 @@ def generate_substrate_networks_figure():
             edge_labels[e] = f"BW:{bw}"
         nx.draw_networkx_edge_labels(substrate, pos, edge_labels, font_size=8, ax=ax)
 
-        ax.set_title(f"{name} Network\\n{len(substrate.nodes())} nodes, {len(substrate.edges())} edges", 
+        ax.set_title(f"{name} Network\n{len(substrate.nodes())} nodes, {len(substrate.edges())} edges",
                     fontweight='bold', fontsize=12)
         ax.axis('off')
     
@@ -150,14 +159,12 @@ def generate_vnr_queue_figure(output_dir):
 def run_all_topology_experiments():
     """Run all 6 topology experiments with fixed visualizations."""
     print("Running all topology experiments...")
-    
+
     # Create and run unified experiments
     experiment = UnifiedTopologyExperiments()
-    
-    # Change output directory to experiments/topology_experiment/
-    experiments_dir = Path("experiments")
-    experiments_dir.mkdir(exist_ok=True)
-    experiment.output_base_dir = experiments_dir / "topology_experiment"
+
+    # Change output directory to topology_experiment/ (script already in experiments/ folder)
+    experiment.output_base_dir = Path("topology_experiment")
     experiment.output_base_dir.mkdir(exist_ok=True)
     
     # Generate substrate networks (with consistent seed)
@@ -176,10 +183,8 @@ def main():
     print()
     
     try:
-        # Create main topology experiment directory
-        experiments_dir = Path("experiments")
-        experiments_dir.mkdir(exist_ok=True)
-        topology_experiment_dir = experiments_dir / "topology_experiment"
+        # Create main topology experiment directory (script already in experiments/ folder)
+        topology_experiment_dir = Path("topology_experiment")
         topology_experiment_dir.mkdir(exist_ok=True)
         
         # Step 1: Generate substrate networks figure in topology_experiment directory
