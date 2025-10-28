@@ -1,6 +1,41 @@
 import networkx as nx
 
 
+def validate_link_mapping(substrate, link_mapping, vnr):
+    """
+    Validate that link mapping won't cause bandwidth over-allocation.
+    """
+    # Track cumulative bandwidth reserved on each substrate edge for this VNR
+    reserved_bandwidth = {}
+
+    for v_edge, s_path in link_mapping.items():
+        bw_req = vnr.edges[v_edge]['bandwidth_req']
+
+        # Check each substrate edge in the path
+        for i in range(len(s_path) - 1):
+            # Normalize edge to canonical form (min, max) for undirected graphs
+            # This ensures traffic in both directions is counted on the same edge
+            edge = (min(s_path[i], s_path[i+1]), max(s_path[i], s_path[i+1]))
+
+            # Add to reserved bandwidth for this edge
+            reserved_bandwidth[edge] = reserved_bandwidth.get(edge, 0) + bw_req
+
+    # Now check if any edge would be over-allocated
+    for edge, reserved_bw in reserved_bandwidth.items():
+        # Get available bandwidth (check both directions for undirected graph)
+        if edge in substrate.edges():
+            available_bw = substrate.edges[edge]['bandwidth_available']
+        else:
+            # Try reversed edge
+            reversed_edge = (edge[1], edge[0])
+            available_bw = substrate.edges[reversed_edge]['bandwidth_available']
+
+        if reserved_bw > available_bw:
+            return False  # Would over-allocate this edge
+
+    return True  # All edges have sufficient bandwidth
+
+
 def allocate_resources(substrate, node_mapping, link_mapping, vnr):
     # Allocate CPU
     for v_node, s_node in node_mapping.items():
@@ -76,23 +111,31 @@ def vne_simulation(substrate, vnr_queue, algorithm_func):
             node_mapping, link_mapping, success = algorithm_func(substrate_working, vnr)
 
             if success:
-                # Allocate resources
-                allocate_resources(substrate_working, node_mapping, link_mapping, vnr)
-                active_embeddings[vnr.graph['vnr_id']] = (node_mapping, link_mapping, vnr)
+                # Validate link mapping before allocation
+                # This prevents bandwidth over-allocation when multiple VNR edges share substrate edges
+                if not validate_link_mapping(substrate_working, link_mapping, vnr):
+                    success = False
+                    print(f"         VALIDATION FAILED - link mapping would over-allocate bandwidth")
+                else:
+                    # Validation passed - allocate resources and schedule departure
+                    allocate_resources(substrate_working, node_mapping, link_mapping, vnr)
+                    active_embeddings[vnr.graph['vnr_id']] = (node_mapping, link_mapping, vnr)
 
-                # Add departure event to queue
-                departure_time = current_time + vnr.graph['lifetime']
-                events.append({
-                    'time': departure_time,
-                    'type': 'DEPARTURE',
-                    'vnr_id': vnr.graph['vnr_id']
-                })
+                    # Add departure event to queue
+                    departure_time = current_time + vnr.graph['lifetime']
+                    events.append({
+                        'time': departure_time,
+                        'type': 'DEPARTURE',
+                        'vnr_id': vnr.graph['vnr_id']
+                    })
 
-                # Re-sort events since we added a departure
-                events.sort(key=lambda x: x['time'])
+                    # Re-sort events since we added a departure
+                    events.sort(key=lambda x: x['time'])
 
-                print(f"         SUCCESS - will depart at time {departure_time}")
-            else:
+                    print(f"         SUCCESS - will depart at time {departure_time}")
+
+            # Print FAILED for both algorithm failures and validation failures
+            if not success:
                 print(f"         FAILED")
 
             results.append({

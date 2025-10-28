@@ -1,7 +1,7 @@
 {
   "experiment_type": "scalability_testing",
   "network_name": "12_nodes",
-  "experiment_date": "2025-10-27T21:31:41.930321",
+  "experiment_date": "2025-10-28T14:23:50.010795",
   "algorithms_tested": [
     "Simple_Greedy",
     "RW_BFS",

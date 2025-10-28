@@ -6,9 +6,12 @@ import os
 def _categorize_edges_by_utilization(substrate, edge_utilization):
     """Categorize edges by utilization level for visual styling."""
     edge_categories = {'unused': [], 'light': [], 'medium': [], 'heavy': []}
-    
+
     for edge in substrate.edges():
-        util = edge_utilization.get(edge, 0.0) + edge_utilization.get((edge[1], edge[0]), 0.0)
+        # Use canonical form (min, max) since that's how we store utilization
+        canonical_edge = (min(edge), max(edge))
+        util = edge_utilization.get(canonical_edge, 0.0)
+
         if util == 0:
             edge_categories['unused'].append(edge)
         elif util <= 0.33:
@@ -17,7 +20,7 @@ def _categorize_edges_by_utilization(substrate, edge_utilization):
             edge_categories['medium'].append(edge)
         else:
             edge_categories['heavy'].append(edge)
-    
+
     return edge_categories
 
 
@@ -40,7 +43,10 @@ def _create_edge_labels(substrate, edge_utilization):
     """Create edge labels showing used/total bandwidth."""
     edge_label_dict = {}
     for edge in substrate.edges():
-        util = edge_utilization.get(edge, 0.0) + edge_utilization.get((edge[1], edge[0]), 0.0)
+        # Use canonical form (min, max) since that's how we store utilization
+        canonical_edge = (min(edge), max(edge))
+        util = edge_utilization.get(canonical_edge, 0.0)
+
         if util > 0:
             total_bw = substrate.edges[edge]['bandwidth']
             used_bw = int(util * total_bw)
@@ -79,11 +85,12 @@ def _calculate_utilization_from_embeddings(substrate, active_embeddings):
     node_utilization = {node: 0.0 for node in substrate.nodes()}
     edge_utilization = {}
     
-    # Initialize edge utilization for both directions (undirected graphs)
+    # Initialize edge utilization - use canonical form (min, max) for undirected graphs
     for edge in substrate.edges():
-        edge_utilization[edge] = 0.0
-        edge_utilization[(edge[1], edge[0])] = 0.0
-    
+        # Normalize to canonical form: always (smaller_node, larger_node)
+        canonical_edge = (min(edge), max(edge))
+        edge_utilization[canonical_edge] = 0.0
+
     # Calculate utilization from active embeddings
     for vnr_id, (node_mapping, link_mapping, vnr) in active_embeddings.items():
         # Node utilization
@@ -91,18 +98,19 @@ def _calculate_utilization_from_embeddings(substrate, active_embeddings):
             cpu_req = vnr.nodes[v_node]['cpu_req']
             total_cpu = substrate.nodes[s_node]['cpu']
             node_utilization[s_node] += cpu_req / total_cpu if total_cpu > 0 else 0
-        
+
         # Edge utilization
         for v_edge, s_path in link_mapping.items():
             bw_req = vnr.edges[v_edge]['bandwidth_req']
             for i in range(len(s_path) - 1):
-                edge1 = (s_path[i], s_path[i + 1])
-                edge2 = (s_path[i + 1], s_path[i])
-                
-                actual_edge = edge1 if edge1 in substrate.edges() else (edge2 if edge2 in substrate.edges() else None)
-                if actual_edge:
-                    total_bw = substrate.edges[actual_edge]['bandwidth']
-                    edge_utilization[actual_edge] += bw_req / total_bw if total_bw > 0 else 0
+                # Normalize edge to canonical form for undirected graphs
+                # This ensures traffic in BOTH directions gets counted on the SAME edge
+                canonical_edge = (min(s_path[i], s_path[i + 1]), max(s_path[i], s_path[i + 1]))
+
+                # Check if this edge exists in substrate
+                if canonical_edge in edge_utilization:
+                    total_bw = substrate.edges[canonical_edge]['bandwidth']
+                    edge_utilization[canonical_edge] += bw_req / total_bw if total_bw > 0 else 0
     
     return node_utilization, edge_utilization
 
